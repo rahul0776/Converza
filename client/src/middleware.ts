@@ -6,21 +6,21 @@ export async function middleware(request: NextRequest) {
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
     const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
         request.nextUrl.pathname.startsWith('/signup');
-    const isProtectedPage = request.nextUrl.pathname === '/';
+    const isChatPage = request.nextUrl.pathname.startsWith('/chat');
 
-    // Redirect to login if accessing protected page without auth
-    if (isProtectedPage && !token) {
+    // Redirect to login if accessing chat without auth
+    if (isChatPage && !token) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    // Redirect to home if accessing auth pages while authenticated
+    // Redirect to chat if accessing auth pages while authenticated
     if (isAuthPage && token) {
-        return NextResponse.redirect(new URL('/', request.url));
+        return NextResponse.redirect(new URL('/chat', request.url));
     }
 
     return NextResponse.next();
 }
 
 export const config = {
-    matcher: ['/', '/login', '/signup'],
+    matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)']
 };

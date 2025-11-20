@@ -59,7 +59,7 @@ export default function SignupPage() {
                 router.push("/login");
             } else {
                 // Success! Redirect to home
-                router.push("/");
+                router.push("/chat");
                 router.refresh();
             }
         } catch (err) {

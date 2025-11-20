@@ -34,7 +34,7 @@ export default function LoginPage() {
                 setError("Invalid email or password");
             } else {
                 console.log("Login successful, redirecting...");
-                router.push("/");
+                router.push("/chat");
                 router.refresh();
             }
         } catch (err) {

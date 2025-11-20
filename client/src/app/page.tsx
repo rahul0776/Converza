@@ -1,11 +1,16 @@
-import { ChatArea } from "@/components/chat-area";
-import { Sidebar } from "@/components/sidebar";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import LandingPage from "./landing/page";
 
-export default function Home() {
-  return (
-    <div className="flex h-screen bg-gradient-to-br from-[#FFFBF7] via-[#FFF8F0] to-[#FFE5D0]">
-      <Sidebar />
-      <ChatArea />
-    </div>
-  );
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
+  // If user is authenticated, redirect to chat
+  if (session) {
+    redirect("/chat");
+  }
+
+  // Otherwise show landing page
+  return <LandingPage />;
 }
