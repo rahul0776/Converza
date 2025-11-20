@@ -195,11 +195,12 @@ export default function LandingPage() {
                             animate={{ x: 0, opacity: 1 }}
                             transition={{ duration: 0.8, delay: 0.4 }}
                         >
-                            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-[#FFE5D0] bg-white">
+                            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-[#FFE5D0] bg-white p-4">
                                 <img
-                                    src="/chat-interface.svg"
+                                    src="/hero-chat.png"
                                     alt="Converza Chat Interface"
                                     className="w-full h-auto"
+                                    loading="eager"
                                 />
                             </div>
                             {/* Floating badge */}
@@ -280,7 +281,7 @@ export default function LandingPage() {
                         >
                             <div className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-[#FFE5D0] bg-white p-4">
                                 <img
-                                    src="/collaboration.svg"
+                                    src="/collaboration.png"
                                     alt="Team Collaboration"
                                     className="w-full h-auto"
                                 />
@@ -394,7 +395,7 @@ export default function LandingPage() {
                         >
                             <div className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-[#FFE5D0] bg-white p-4">
                                 <img
-                                    src="/security.svg"
+                                    src="/security.png"
                                     alt="Security and Privacy"
                                     className="w-full h-auto"
                                 />
