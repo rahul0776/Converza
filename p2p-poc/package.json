@@ -1,0 +1,20 @@
+{
+    "name": "converza-p2p-poc",
+    "version": "1.0.0",
+    "description": "Proof of concept for P2P messaging in Converza",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "server": "node signaling-server.js"
+    },
+    "dependencies": {
+        "simple-peer": "^9.11.1",
+        "socket.io": "^4.6.1",
+        "socket.io-client": "^4.6.1"
+    },
+    "devDependencies": {
+        "vite": "^5.0.0",
+        "typescript": "^5.3.0"
+    }
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Converza P2P - Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #FFF8F0 0%, #FFE5D0 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #FF6B1A;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-item {
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #FF8C42 0%, #FF6B1A 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        #output {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            min-height: 200px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Converza P2P - Simple Test</h1>
+
+        <div class="status">
+            <div class="status-item"><strong>Status:</strong> <span id="status">Initializing...</span></div>
+            <div class="status-item"><strong>Username:</strong> <span id="username">Not set</span></div>
+            <div class="status-item"><strong>Signaling Server:</strong> <span id="server">Not connected</span></div>
+        </div>
+
+        <div>
+            <button onclick="testConnection()">Test Connection</button>
+            <button onclick="setUsername()">Set Username</button>
+            <button onclick="clearOutput()">Clear Output</button>
+        </div>
+
+        <div id="output">Waiting for action...</div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        console.log('✅ Script loaded successfully!');
+
+        let socket = null;
+        let userName = '';
+
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').textContent = '';
+        }
+
+        function setUsername() {
+            userName = prompt('Enter your name:') || `User${Math.floor(Math.random() * 1000)}`;
+            document.getElementById('username').textContent = userName;
+            document.getElementById('status').textContent = 'Username set';
+            log(`Username set to: ${userName}`);
+        }
+
+        function testConnection() {
+            if (!userName) {
+                alert('Please set a username first!');
+                return;
+            }
+
+            log('Attempting to connect to signaling server...');
+            document.getElementById('status').textContent = 'Connecting...';
+
+            try {
+                socket = io('http://localhost:3001');
+
+                socket.on('connect', () => {
+                    log('✅ Connected to signaling server!');
+                    document.getElementById('server').textContent = 'Connected';
+                    document.getElementById('status').textContent = 'Connected';
+
+                    socket.emit('register', userName);
+                    log(`Registered as: ${userName}`);
+                });
+
+                socket.on('peers-update', (peers) => {
+                    log(`📋 Peers updated: ${JSON.stringify(peers)}`);
+                });
+
+                socket.on('disconnect', () => {
+                    log('❌ Disconnected from server');
+                    document.getElementById('server').textContent = 'Disconnected';
+                    document.getElementById('status').textContent = 'Disconnected';
+                });
+
+                socket.on('error', (error) => {
+                    log(`❌ Error: ${error}`);
+                });
+
+            } catch (error) {
+                log(`❌ Connection failed: ${error.message}`);
+                document.getElementById('status').textContent = 'Connection failed';
+            }
+        }
+
+        // Auto-initialize
+        document.getElementById('status').textContent = 'Ready';
+        log('Page loaded successfully!');
+        log('Click "Set Username" then "Test Connection" to begin.');
+    </script>
+</body>
+
+</html>

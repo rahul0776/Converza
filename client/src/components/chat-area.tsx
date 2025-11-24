@@ -6,6 +6,9 @@ import { useSession } from "next-auth/react";
 import { getSocket } from "@/lib/socket";
 import { useConversationStore } from "@/store/conversation-store";
 import { useConversationMessages, useConversation } from "@/hooks/use-conversations";
+import { TypingIndicator } from "@/components/typing-indicator";
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import { MessageReadStatus } from "@/components/message-read-status";
 
 type Message = {
     id?: string;
@@ -17,6 +20,7 @@ type Message = {
     };
     createdAt?: string;
     time: string;
+    isRead?: boolean;
 };
 
 export function ChatArea() {
@@ -24,8 +28,13 @@ export function ChatArea() {
     const { activeConversationId } = useConversationStore();
     const [message, setMessage] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
+    const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; userName: string }>>([]);
+    const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
 
     // Fetch conversation details
     const { data: conversation } = useConversation(activeConversationId);
@@ -65,6 +74,24 @@ export function ChatArea() {
         // Join the active conversation room
         socket.emit('join_conversation', activeConversationId);
 
+        // Listen for typing indicators
+        socket.on("user_typing", (data: { userId: string; userName: string; conversationId: string }) => {
+            if (data.conversationId === activeConversationId) {
+                setTypingUsers((prev) => {
+                    if (!prev.find(u => u.userId === data.userId)) {
+                        return [...prev, { userId: data.userId, userName: data.userName }];
+                    }
+                    return prev;
+                });
+            }
+        });
+
+        socket.on("user_stopped_typing", (data: { userId: string; conversationId: string }) => {
+            if (data.conversationId === activeConversationId) {
+                setTypingUsers((prev) => prev.filter(u => u.userId !== data.userId));
+            }
+        });
+
         socket.on("receive_message", (data: any) => {
             // Only add if it's not from the current user (avoid duplicates from optimistic update)
             // AND if it's for the active conversation
@@ -83,12 +110,84 @@ export function ChatArea() {
             }
         });
 
+        // Listen for read receipts
+        socket.on("messages_read", (data: { messageIds: string[]; userId: string; userName: string; readAt: Date }) => {
+            if (data.userId !== session.user?.id) {
+                setReadMessageIds((prev) => {
+                    const newSet = new Set(prev);
+                    data.messageIds.forEach(id => newSet.add(id));
+                    return newSet;
+                });
+            }
+        });
+
         return () => {
             socket.emit('leave_conversation', activeConversationId);
             socket.off("receive_message");
+            socket.off("user_typing");
+            socket.off("user_stopped_typing");
+            socket.off("messages_read");
             socket.disconnect();
         };
     }, [session, activeConversationId]);
+
+    // Clear typing users when conversation changes
+    useEffect(() => {
+        setTypingUsers([]);
+        setReadMessageIds(new Set());
+    }, [activeConversationId]);
+
+    // Mark messages as read when viewing conversation
+    useEffect(() => {
+        if (!socketRef.current || !session?.user || !activeConversationId || messages.length === 0) return;
+
+        // Find unread messages from other users
+        const unreadMessageIds = messages
+            .filter(msg => msg.id && msg.sender.id !== session.user?.id && !readMessageIds.has(msg.id))
+            .map(msg => msg.id!);
+
+        if (unreadMessageIds.length > 0) {
+            socketRef.current.emit('mark_as_read', {
+                messageIds: unreadMessageIds,
+                conversationId: activeConversationId
+            });
+
+            // Update local state
+            setReadMessageIds((prev) => {
+                const newSet = new Set(prev);
+                unreadMessageIds.forEach(id => newSet.add(id));
+                return newSet;
+            });
+        }
+    }, [messages, activeConversationId, session, readMessageIds]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setMessage(value);
+
+        if (!socketRef.current || !activeConversationId) return;
+
+        // Emit typing_start
+        if (value.length > 0) {
+            socketRef.current.emit('typing_start', { conversationId: activeConversationId });
+
+            // Clear existing timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            // Set timeout to emit typing_stop after 2 seconds of inactivity
+            typingTimeoutRef.current = setTimeout(() => {
+                socketRef.current?.emit('typing_stop', { conversationId: activeConversationId });
+            }, 2000);
+        } else {
+            // Emit typing_stop immediately if input is cleared
+            socketRef.current.emit('typing_stop', { conversationId: activeConversationId });
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        }
+    };
 
     const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
@@ -113,8 +212,40 @@ export function ChatArea() {
             },
         ]);
         setMessage("");
+
+        // Emit typing_stop when message is sent
+        if (socketRef.current && activeConversationId) {
+            socketRef.current.emit('typing_stop', { conversationId: activeConversationId });
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        }
+
         setTimeout(scrollToBottom, 100);
     };
+
+    // Handle emoji selection
+    const handleEmojiClick = (emojiData: EmojiClickData) => {
+        setMessage((prev) => prev + emojiData.emoji);
+        setShowEmojiPicker(false);
+    };
+
+    // Close emoji picker when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        };
+
+        if (showEmojiPicker) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showEmojiPicker]);
 
     const isMyMessage = (msg: Message) => {
         return msg.sender.id === session?.user?.id;
@@ -199,25 +330,46 @@ export function ChatArea() {
                                         </span>
                                     )}
                                     <div className={`group relative px-4 py-3 rounded-2xl shadow-sm ${isMine
-                                            ? "bg-gradient-to-br from-[#FF8C42] to-[#FF6B1A] text-white rounded-br-md"
-                                            : "bg-white text-[#2D2D2D] border border-[#FFE5D0] rounded-bl-md"
+                                        ? "bg-gradient-to-br from-[#FF8C42] to-[#FF6B1A] text-white rounded-br-md"
+                                        : "bg-white text-[#2D2D2D] border border-[#FFE5D0] rounded-bl-md"
                                         }`}>
                                         <p className="text-sm leading-relaxed">{msg.content}</p>
                                         {isMine && (
                                             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-gradient-to-br from-[#FF8C42] to-[#FF6B1A] transform rotate-45"></div>
                                         )}
                                     </div>
-                                    <span className="text-xs text-[#6B6B6B] mt-1.5 px-1">{msg.time}</span>
+                                    <span className="text-xs text-[#6B6B6B] mt-1.5 px-1 flex items-center gap-1">
+                                        {msg.time}
+                                        {isMine && msg.id && (
+                                            <MessageReadStatus
+                                                isMine={true}
+                                                isRead={readMessageIds.has(msg.id)}
+                                            />
+                                        )}
+                                    </span>
                                 </div>
                             </div>
                         );
                     })
                 )}
+                {/* Typing Indicator */}
+                <TypingIndicator typingUsers={typingUsers} />
                 <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-[#FFE5D0] shadow-lg">
+            <div className="relative p-4 bg-white border-t border-[#FFE5D0] shadow-lg">
+                {/* Emoji Picker */}
+                {showEmojiPicker && (
+                    <div ref={emojiPickerRef} className="absolute bottom-20 left-4 z-50">
+                        <EmojiPicker
+                            onEmojiClick={handleEmojiClick}
+                            width={350}
+                            height={400}
+                        />
+                    </div>
+                )}
+
                 <form onSubmit={handleSend} className="flex items-center gap-3">
                     <button
                         type="button"
@@ -227,14 +379,16 @@ export function ChatArea() {
                     </button>
                     <button
                         type="button"
-                        className="p-2.5 hover:bg-[#FFF8F0] rounded-xl transition-colors"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className={`p-2.5 hover:bg-[#FFF8F0] rounded-xl transition-colors ${showEmojiPicker ? 'bg-[#FFF8F0]' : ''
+                            }`}
                     >
                         <Smile className="w-5 h-5 text-[#6B6B6B]" />
                     </button>
                     <input
                         type="text"
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={handleInputChange}
                         placeholder="Type your message..."
                         className="flex-1 px-4 py-3 bg-[#FFF8F0] border border-[#FFE5D0] rounded-xl text-[#2D2D2D] placeholder:text-[#6B6B6B] focus:outline-none focus:ring-2 focus:ring-[#FF8C42] focus:border-transparent"
                     />

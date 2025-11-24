@@ -180,6 +180,91 @@ io.on('connection', async (socket) => {
         console.log(`User ${user.name} left conversation: ${conversationId}`);
     });
 
+    // Handle typing indicators
+    socket.on('typing_start', async ({ conversationId }) => {
+        try {
+            // Verify user is participant
+            const participant = await prisma.conversationParticipant.findFirst({
+                where: { userId, conversationId }
+            });
+
+            if (participant) {
+                // Broadcast to others in the conversation (exclude sender)
+                socket.to(`conversation:${conversationId}`).emit('user_typing', {
+                    userId,
+                    userName: user.name,
+                    conversationId
+                });
+                console.log(`User ${user.name} started typing in ${conversationId}`);
+            }
+        } catch (error) {
+            console.error('Error handling typing_start:', error);
+        }
+    });
+
+    socket.on('typing_stop', async ({ conversationId }) => {
+        try {
+            // Verify user is participant
+            const participant = await prisma.conversationParticipant.findFirst({
+                where: { userId, conversationId }
+            });
+
+            if (participant) {
+                // Broadcast to others in the conversation (exclude sender)
+                socket.to(`conversation:${conversationId}`).emit('user_stopped_typing', {
+                    userId,
+                    conversationId
+                });
+                console.log(`User ${user.name} stopped typing in ${conversationId}`);
+            }
+        } catch (error) {
+            console.error('Error handling typing_stop:', error);
+        }
+    });
+
+    // Handle marking messages as read
+    socket.on('mark_as_read', async ({ messageIds, conversationId }: { messageIds: string[]; conversationId: string }) => {
+        try {
+            // Verify user is participant
+            const participant = await prisma.conversationParticipant.findFirst({
+                where: { userId, conversationId }
+            });
+
+            if (!participant) return;
+
+            // Mark messages as read (upsert to avoid duplicates)
+            const readReceipts = await Promise.all(
+                messageIds.map(messageId =>
+                    prisma.messageRead.upsert({
+                        where: {
+                            messageId_userId: {
+                                messageId,
+                                userId
+                            }
+                        },
+                        update: {},
+                        create: {
+                            messageId,
+                            userId
+                        }
+                    })
+                )
+            );
+
+            // Broadcast to conversation that messages were read
+            socket.to(`conversation:${conversationId}`).emit('messages_read', {
+                messageIds,
+                userId,
+                userName: user.name,
+                readAt: new Date()
+            });
+
+            console.log(`User ${user.name} marked ${messageIds.length} messages as read in ${conversationId}`);
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', userId, socket.id);
     });

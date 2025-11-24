@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Converza P2P - Proof of Concept</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #FFF8F0 0%, #FFE5D0 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #FF6B1A;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel h2 {
+            color: #2D2D2D;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .peer-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .peer-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #F8F9FA;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .peer-item:hover {
+            background: #E9ECEF;
+            transform: translateX(4px);
+        }
+
+        .peer-item.connected {
+            background: #D4EDDA;
+            border-color: #28a745;
+        }
+
+        .peer-name {
+            font-weight: 600;
+            color: #2D2D2D;
+        }
+
+        .peer-status {
+            font-size: 0.85rem;
+            color: #6B6B6B;
+            margin-top: 4px;
+        }
+
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #F8F9FA;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.sent {
+            background: linear-gradient(135deg, #FF8C42 0%, #FF6B1A 100%);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.received {
+            background: white;
+            color: #2D2D2D;
+            border: 1px solid #E9ECEF;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-sender {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #E9ECEF;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #FF8C42;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #FF8C42 0%, #FF6B1A 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 26, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6B6B6B;
+            padding: 40px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Converza P2P</h1>
+            <p style="color: #6B6B6B;">Proof of Concept - Local Network Messaging</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+            <div class="status-item">
+                <strong>You:</strong> <span id="userName"></span>
+            </div>
+            <div class="status-item">
+                <strong>Peers:</strong> <span id="peerCount">0</span>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="panel">
+                <h2>📡 Available Peers</h2>
+                <div class="peer-list" id="peerList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <p>Waiting for peers...</p>
+                        <p style="font-size: 0.85rem; margin-top: 8px;">Open this page on another device</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel chat-area">
+                <h2 id="chatTitle">💬 Select a peer to chat</h2>
+                <div class="messages" id="messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💭</div>
+                        <p>No messages yet</p>
+                        <p style="font-size: 0.85rem; margin-top: 8px;">Click on a peer to start chatting</p>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="Type a message..." disabled />
+                    <button id="sendBtn" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <script>
+        console.log('🚀 Converza P2P POC initialized');
+
+        let socket;
+        let peers = new Map();
+        let userName = '';
+        let currentPeerId = null;
+        let currentPeerName = '';
+
+        // Get username
+        userName = prompt('Enter your name:') || `User${Math.floor(Math.random() * 1000)}`;
+        document.getElementById('userName').textContent = userName;
+
+        // Initialize Socket.io
+        socket = io('http://localhost:3001');
+
+        socket.on('connect', () => {
+            console.log('✅ Connected to signaling server');
+            document.getElementById('statusText').textContent = 'Connected to server';
+            socket.emit('register', userName);
+        });
+
+        socket.on('peers-update', (peerList) => {
+            console.log('📋 Peers updated:', peerList);
+            const otherPeers = peerList.filter(p => p.id !== socket.id);
+            updatePeerList(otherPeers);
+        });
+
+        socket.on('signal', ({ from, fromName, signal }) => {
+            console.log('📡 Received signal from:', fromName);
+            handleSignal(from, fromName, signal);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+            document.getElementById('statusText').textContent = 'Disconnected';
+        });
+
+        function updatePeerList(peerList) {
+            const peerListEl = document.getElementById('peerList');
+            document.getElementById('peerCount').textContent = peerList.length.toString();
+
+            if (peerList.length === 0) {
+                peerListEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">👥</div>
+            <p>Waiting for peers...</p>
+            <p style="font-size: 0.85rem; margin-top: 8px;">Open this page on another device</p>
+          </div>
+        `;
+                return;
+            }
+
+            peerListEl.innerHTML = peerList.map(peer => `
+        <div class="peer-item ${isConnected(peer.id) ? 'connected' : ''}" 
+             onclick="connectToPeer('${peer.id}', '${peer.userName}')">
+          <div class="peer-name">${peer.userName}</div>
+          <div class="peer-status">
+            ${isConnected(peer.id) ? '🟢 Connected' : '⚪ Click to connect'}
+          </div>
+        </div>
+      `).join('');
+        }
+
+        function isConnected(peerId) {
+            const peer = peers.get(peerId);
+            return peer && peer.connected;
+        }
+
+        window.connectToPeer = function (peerId, peerName) {
+            if (peers.has(peerId) && peers.get(peerId).connected) {
+                currentPeerId = peerId;
+                currentPeerName = peerName;
+                document.getElementById('chatTitle').textContent = `💬 Chat with ${peerName}`;
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                return;
+            }
+
+            console.log('🔗 Initiating connection to:', peerName);
+            currentPeerId = peerId;
+            currentPeerName = peerName;
+            document.getElementById('chatTitle').textContent = `💬 Connecting to ${peerName}...`;
+
+            const peer = new SimplePeer({ initiator: true, trickle: false });
+
+            peer.on('signal', (signal) => {
+                console.log('📤 Sending signal to:', peerName);
+                socket.emit('signal', { to: peerId, signal });
+            });
+
+            peer.on('connect', () => {
+                console.log('✅ Connected to peer:', peerName);
+                document.getElementById('chatTitle').textContent = `💬 Chat with ${peerName}`;
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                addSystemMessage(`Connected to ${peerName}`);
+                updatePeerList([]);
+            });
+
+            peer.on('data', (data) => {
+                const message = JSON.parse(data.toString());
+                console.log('📨 Message received:', message);
+                addMessage(message.text, message.sender, false);
+            });
+
+            peer.on('error', (err) => console.error('❌ Peer error:', err));
+            peer.on('close', () => {
+                console.log('🔌 Peer connection closed:', peerName);
+                peers.delete(peerId);
+            });
+
+            peers.set(peerId, peer);
+        };
+
+        function handleSignal(from, fromName, signal) {
+            let peer = peers.get(from);
+
+            if (!peer) {
+                console.log('🔗 Creating peer connection for:', fromName);
+                peer = new SimplePeer({ initiator: false, trickle: false });
+
+                peer.on('signal', (signal) => {
+                    console.log('📤 Sending signal back to:', fromName);
+                    socket.emit('signal', { to: from, signal });
+                });
+
+                peer.on('connect', () => {
+                    console.log('✅ Connected to peer:', fromName);
+                    if (currentPeerId === from) {
+                        document.getElementById('chatTitle').textContent = `💬 Chat with ${fromName}`;
+                        document.getElementById('messageInput').disabled = false;
+                        document.getElementById('sendBtn').disabled = false;
+                    }
+                    addSystemMessage(`Connected to ${fromName}`);
+                });
+
+                peer.on('data', (data) => {
+                    const message = JSON.parse(data.toString());
+                    console.log('📨 Message received:', message);
+                    addMessage(message.text, message.sender, false);
+                });
+
+                peer.on('error', (err) => console.error('❌ Peer error:', err));
+                peer.on('close', () => {
+                    console.log('🔌 Peer connection closed:', fromName);
+                    peers.delete(from);
+                });
+
+                peers.set(from, peer);
+            }
+
+            peer.signal(signal);
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+
+            if (!text || !currentPeerId) return;
+
+            const peer = peers.get(currentPeerId);
+            if (!peer || !peer.connected) {
+                alert('Not connected to peer!');
+                return;
+            }
+
+            const message = { text, sender: userName, timestamp: Date.now() };
+            peer.send(JSON.stringify(message));
+            console.log('📤 Message sent:', message);
+            addMessage(text, userName, true);
+            input.value = '';
+        }
+
+        function addMessage(text, sender, isSent) {
+            const messages = document.getElementById('messages');
+            const emptyState = messages.querySelector('.empty-state');
+            if (emptyState) messages.innerHTML = '';
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            messageDiv.innerHTML = `
+        ${!isSent ? `<div class="message-sender">${sender}</div>` : ''}
+        <div>${text}</div>
+        <div class="message-time">${time}</div>
+      `;
+
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function addSystemMessage(text) {
+            const messages = document.getElementById('messages');
+            const emptyState = messages.querySelector('.empty-state');
+            if (emptyState) messages.innerHTML = '';
+
+            const messageDiv = document.createElement('div');
+            messageDiv.style.cssText = 'text-align: center; color: #6B6B6B; font-size: 0.85rem; margin: 10px 0; padding: 8px; background: #F8F9FA; border-radius: 8px;';
+            messageDiv.textContent = text;
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

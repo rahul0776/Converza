@@ -19,6 +19,7 @@ model User {
   messages              Message[]
   conversations         ConversationParticipant[]
   createdConversations  Conversation[]            @relation("CreatedConversations")
+  readMessages          MessageRead[]
 }
 
 model Conversation {
@@ -55,4 +56,17 @@ model Message {
 
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  readBy       MessageRead[]
+}
+
+model MessageRead {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
